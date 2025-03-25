@@ -8,6 +8,46 @@ from arxiv_downloader.downloader import *
 import tarfile
 import gzip
 import shutil
+import pdf2image
+import subprocess
+
+def eps_to_png(file_path):
+    files = os.listdir(file_path)
+    for file in files:
+        if file.endswith('.eps'):
+            eps_path = os.path.join(file_path, file)
+            png_path = os.path.join(file_path, f'{os.path.splitext(file)[0]}.png')
+            
+            command = [
+                'gs',
+                '-dSAFER',         # 安全模式
+                '-dBATCH',         # 处理完成后退出
+                '-dNOPAUSE',       # 不暂停提示
+                '-sDEVICE=png16m', # 输出设备为PNG（24位色）
+                f'-r{300}',        # 分辨率
+                '-dGraphicsAlphaBits=4',  # 抗锯齿
+                '-dTextAlphaBits=4',
+                f'-sOutputFile={png_path}',
+                eps_path
+            ]
+            try:
+                subprocess.run(command, check=True, capture_output=True)
+                print(f"成功转换 {eps_path} 为 {png_path}")
+            except subprocess.CalledProcessError as e:
+                print(f"转换失败: {e.stderr.decode()}")
+
+def convert_pdf_to_image(file_path):
+    files = os.listdir(file_path)
+    for file in files:
+        if file.endswith('.pdf'):
+            print(f"Converting {file} to images")
+            pdf_path = os.path.join(file_path, file)
+            images = pdf2image.convert_from_path(pdf_path)
+            png_path = os.path.join(file_path, f'{os.path.splitext(file)[0]}.png')
+            for image in images:
+                image.save(png_path, 'PNG')
+            os.remove(pdf_path)
+
 
 def get_split(nodeid, train_set, valid_set, test_set):
     if nodeid in train_set:
@@ -60,18 +100,13 @@ def retain_files_with_extensions(root_dir, extensions):
 def extract_tar_gz(folder: str) -> None:
     archives = [f for f in os.listdir(folder) if f.endswith(".tar.gz")]
     archive_path = os.path.join(folder, archives[0])
-    temp_tar = os.path.join(folder, "temp.tar")
+    
     try:
-        with gzip.open(archive_path, 'rb') as f_in:
-            with open(temp_tar, 'wb') as f_out:
-                f_out.write(f_in.read())
-                
-        with tarfile.open(temp_tar, 'r') as tar:
+        with tarfile.open(archive_path, 'r:gz') as tar:
             tar.extractall(folder)
             print(f"Extracting {archive_path}")
-    finally:
-        if os.path.exists(temp_tar):
-            os.remove(temp_tar)
+    except Exception as e:
+        print(f"Error extracting {archive_path}: {str(e)}")
     
 
 if __name__ == "__main__":
@@ -126,15 +161,22 @@ if __name__ == "__main__":
         clean_lines = (line.replace('\x00', '') for line in fd2)
         rd2 = csv.reader(clean_lines)
         for row in rd2:
+            
             print(row[0],dic[row[1]])
             split = get_split(row[0], train_set, valid_set, test_set)
             print(split)
+
             os.makedirs(f'{dir_name}/{split}/{row[0]}', exist_ok=True)
+
+
+
             if download_by_title(dic[row[1]],f'{dir_name}/{split}/{row[0]}'):
                 extract_tar_gz(f'{dir_name}/{split}/{row[0]}')
                 retain_files_with_extensions(f'{dir_name}/{split}/{row[0]}', extensions)
+                convert_pdf_to_image(f'{dir_name}/{split}/{row[0]}')
+                eps_to_png(f'{dir_name}/{split}/{row[0]}')
             i+=1
-            if i==10: 
+            if i==1000: 
                 break
     
     

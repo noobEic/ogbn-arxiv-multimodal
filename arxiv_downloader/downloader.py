@@ -10,9 +10,8 @@ load_dotenv()
 ARXIV_API_URL = "http://export.arxiv.org/api/query?"
 
 def search_arxiv(title, max_results=3):
-    """通过标题搜索arXiv论文"""
     query = {
-        "search_query": f'ti:"{title}"',
+        "search_query": f'{title}',
         "start": 0,
         "max_results": max_results,
         "sortBy": "relevance",
@@ -58,7 +57,9 @@ def download_tex(arxiv_id, output_dir="downloads"):
         print(f"下载失败: {str(e)}")
         return None
 
-def download_by_title(title, output_dir,delay=3):
+def download_by_title(title, output_dir,delay=20):
+
+
     """主函数"""
     # 搜索论文
     paper = search_arxiv(title)
